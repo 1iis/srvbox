@@ -1,0 +1,46 @@
+#----------------------------
+# 1iis/devbox
+#----------------------------
+NOTES.md
+
+# secrets / local state
+
+# env vars
+env.zsh
+
+# private keys
+*.secret
+*.token
+*.key
+*.pem
+
+# SSH material
+.ssh/
+!templates/ssh_config.example
+
+# tool auth/state
+.codex/
+.config/gh/
+.npm/
+.zsh_history
+
+# local machine config
+.local/
+.cache/
+
+#----------------------------
+
+# solveit
+DX/
+*.ipynb
+# dev notebooks
+!host/sync.ipynb
+
+#----------------------------
+
+# python
+__pycache__/
+*.py[cod]
+.ruff_cache/
+
+#----------------------------
