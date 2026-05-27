@@ -1,20 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="${SRVBOX_REPO_URL:-https://github.com/1iis/srvbox.git}"
-DEST="${SRVBOX_DEST:-/opt/1iis/srvbox}"
-BRANCH="${SRVBOX_BRANCH:-main}"
+APP="${APP:-srvbox}"
+BASE="${BASE:-/opt/1iis}"
+APP_ROOT="${APP_ROOT:-$BASE/$APP}"
+RELEASES="$APP_ROOT/releases"
+CURRENT="$APP_ROOT/current"
 PYTHON="${PYTHON:-python3}"
 
 log() {
   printf '==> %s\n' "$*"
 }
 
+fail() {
+  echo "error: $*" >&2
+  exit 1
+}
+
 need_root() {
   if [ "$(id -u)" -ne 0 ]; then
-    echo "error: setup.sh must run as root" >&2
-    exit 1
+    fail "setup.sh must run as root"
   fi
+}
+
+source_dir() {
+  cd "$(dirname "$0")/.."
+  pwd -P
 }
 
 install_base_packages() {
@@ -22,37 +33,53 @@ install_base_packages() {
 
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y git python3 ca-certificates
+    DEBIAN_FRONTEND=noninteractive apt-get install -y python3 ca-certificates
   else
-    echo "error: only apt-based systems are supported for now" >&2
-    exit 1
+    fail "only apt-based systems are supported for now"
   fi
 }
 
-clone_or_update_repo() {
-  log "Ensuring srvbox repo exists at $DEST"
+copy_release() {
+  local src="$1"
+  local stamp
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  local release="$RELEASES/$stamp"
+  local tmp="$release.tmp"
 
-  mkdir -p "$(dirname "$DEST")"
+  log "Installing $APP release: $release"
+  mkdir -p "$RELEASES"
+  rm -rf "$tmp"
+  mkdir -p "$tmp"
 
-  if [ -d "$DEST/.git" ]; then
-    git -C "$DEST" fetch --depth=1 origin "$BRANCH"
-    git -C "$DEST" checkout "$BRANCH"
-    git -C "$DEST" reset --hard "origin/$BRANCH"
-  else
-    git clone --depth=1 --branch "$BRANCH" "$REPO_URL" "$DEST"
-  fi
+  tar \
+    --create \
+    --file - \
+    --directory "$src" \
+    --exclude '.git' \
+    --exclude '.ipynb_checkpoints' \
+    --exclude '__pycache__' \
+    --exclude '*.pyc' \
+    --exclude 'tmp*' \
+    . | tar --extract --file - --directory "$tmp"
+
+  mv "$tmp" "$release"
+  ln -sfn "$release" "$CURRENT"
 }
 
 run_sync() {
   log "Handing off to host/sync.py"
-  cd "$DEST"
+  cd "$CURRENT"
   exec "$PYTHON" host/sync.py apply
 }
 
 main() {
   need_root
+
+  local src
+  src="$(source_dir)"
+
   install_base_packages
-  clone_or_update_repo
+  copy_release "$src"
   run_sync
 }
 
