@@ -35,7 +35,10 @@ def ensure_base_dirs() -> None:
         Path("/var/lib/1iis"),
         Path("/var/log/1iis"),
     ]:
-        log(f"TODO/ensure directory: {path}")
+        path.mkdir(parents=True, exist_ok=True)
+        shutil.chown(path, user="root", group="root")
+        path.chmod(0o755)
+        log(f"ensured directory: {path}")
 def ensure_admin_user() -> None:
     log("TODO: create non-root admin/service user conventions")
 def configure_ssh() -> None:
