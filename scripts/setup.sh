@@ -48,6 +48,8 @@ copy_release() {
 
   log "Installing $APP release: $release"
   mkdir -p "$RELEASES"
+  chown root:root "$APP_ROOT" "$RELEASES"
+  chmod 0755 "$APP_ROOT" "$RELEASES"
   rm -rf "$tmp"
   mkdir -p "$tmp"
 
@@ -61,6 +63,10 @@ copy_release() {
     --exclude '*.pyc' \
     --exclude 'tmp*' \
     . | tar --extract --file - --directory "$tmp"
+
+  chown -R root:root "$tmp"
+  chmod -R u=rwX,go=rX "$tmp"
+  chmod +x "$tmp"/scripts/*.sh
 
   mv "$tmp" "$release"
   ln -sfn "$release" "$CURRENT"

@@ -68,6 +68,9 @@ make_artifact() {
     --create \
     --gzip \
     --file "$artifact" \
+    --owner=0 \
+    --group=0 \
+    --numeric-owner \
     --directory "$src" \
     --exclude '.git' \
     --exclude '.ipynb_checkpoints' \
