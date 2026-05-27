@@ -7,10 +7,17 @@
 
 A production server should not need `git` or GitHub credentials, let alone write access to source repositories.  
 Instead, the workstation sends a complete artifact `/tmp/deploy/1iis/srvbox.tar.gz` which the server unpacks and installs.  
+This gives us a small, inspectable deployment path: `tar`, `cat`, `scp`, `ssh`, `sudo`, `sh`, with two clear network ops (🛜 below), in three `.sh` scripts:
+1. `deploy`
+2. `setup`
+3. `check`
 
-This gives us a small, inspectable deployment path: `tar`, `cat`, `scp`, `ssh`, `sudo`, `sh`, with two clear network ops (🛜 below).
+In practice, you only need to run the first one from your workstation.
 
-`./scripts/deploy.sh -d user@host` does:
+```sh
+./scripts/deploy.sh -d user@host
+```
+does:
 
 ```text
 ——— Workstation ———————————————————————————————————————————————————
@@ -32,7 +39,7 @@ This gives us a small, inspectable deployment path: `tar`, `cat`, `scp`, `ssh`, 
 ——— Hardened host —————————————————————————————————————————————————
 ```
 
-## `deploy.sh`
+## 1. `deploy.sh`
 > Workstation side
 
 ```text
@@ -106,7 +113,7 @@ Thus we need the terminal: `ssh -t` forces pseudo-terminal allocation.
 
 ---
 
-## `setup.sh`
+## 2. `setup.sh`
 > Server side
 
 `setup.sh` is executed by the runner inside the unpacked artifact at `/tmp/deploy/1iis/$REPO/`.
@@ -142,7 +149,7 @@ It expects to run as `root`.
 
 ---
 
-## `check.sh`
+## 3. `check.sh`
 > Validation
 
 Placeholder. Eventually: lint bash, `py_compile` Python, and dry-run checks that can be executed locally before `deploy.sh` is called.
