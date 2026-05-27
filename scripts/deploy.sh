@@ -94,8 +94,11 @@ run_remote_setup() {
   local remote_artifact="$2"
   local remote_src="$3"
 
+  log "Refreshing remote sudo credentials"
+  ssh -t "$DST" "sudo -v"
+
   log "Extracting and running remote setup"
-  ssh -tt "$DST" "sudo env REPO='$repo' DEPLOY_ROOT='$DEPLOY_ROOT' REMOTE_ARTIFACT='$remote_artifact' REMOTE_SRC='$remote_src' sh -s" <<'EOF'
+  ssh "$DST" "sudo -n env REPO='$repo' DEPLOY_ROOT='$DEPLOY_ROOT' REMOTE_ARTIFACT='$remote_artifact' REMOTE_SRC='$remote_src' sh -s" <<'EOF'
 set -eu
 
 echo "==> Preparing remote source: $REMOTE_SRC"
@@ -126,7 +129,7 @@ main() {
   local remote_artifact="$DEPLOY_ROOT/$repo.tar.gz"
   local remote_src="$DEPLOY_ROOT/$repo"
 
-  trap 'rm -f "$artifact"' EXIT
+  trap "rm -f '$artifact'" EXIT
 
   make_artifact "$SRC" "$repo" "$artifact"
   upload_artifact "$artifact" "$remote_artifact"
