@@ -78,28 +78,18 @@ make_artifact() {
     .
 }
 
-upload_artifact() {
-  local artifact="$1"
-  local remote_artifact="$2"
+write_runner() {
+  local runner="$1"
 
-  log "Ensuring remote deploy root: $DST:$DEPLOY_ROOT"
-  ssh "$DST" "mkdir -p '$DEPLOY_ROOT'"
-
-  log "Uploading artifact to: $DST:$remote_artifact"
-  scp "$artifact" "$DST:$remote_artifact"
-}
-
-run_remote_setup() {
-  local repo="$1"
-  local remote_artifact="$2"
-  local remote_src="$3"
-
-  log "Refreshing remote sudo credentials"
-  ssh -t "$DST" "sudo -v"
-
-  log "Extracting and running remote setup"
-  ssh "$DST" "sudo -n env REPO='$repo' DEPLOY_ROOT='$DEPLOY_ROOT' REMOTE_ARTIFACT='$remote_artifact' REMOTE_SRC='$remote_src' sh -s" <<'EOF'
+  cat >"$runner" <<'EOF'
+#!/usr/bin/env sh
 set -eu
+
+: "${REPO:?missing REPO}"
+: "${DEPLOY_ROOT:?missing DEPLOY_ROOT}"
+
+REMOTE_ARTIFACT="$DEPLOY_ROOT/$REPO.tar.gz"
+REMOTE_SRC="$DEPLOY_ROOT/$REPO"
 
 echo "==> Preparing remote source: $REMOTE_SRC"
 rm -rf "$REMOTE_SRC"
@@ -116,6 +106,28 @@ cd "$REMOTE_SRC"
 EOF
 }
 
+upload_payload() {
+  local artifact="$1"
+  local runner="$2"
+  local remote_artifact="$3"
+  local remote_runner="$4"
+
+  log "Ensuring remote deploy root: $DST:$DEPLOY_ROOT"
+  ssh "$DST" "mkdir -p '$DEPLOY_ROOT'"
+
+  log "Uploading artifact and runner to: $DST:$DEPLOY_ROOT"
+  scp "$artifact" "$DST:$remote_artifact"
+  scp "$runner" "$DST:$remote_runner"
+}
+
+run_remote_setup() {
+  local repo="$1"
+  local remote_runner="$2"
+
+  log "Running remote setup"
+  ssh -t "$DST" "sudo env REPO='$repo' DEPLOY_ROOT='$DEPLOY_ROOT' sh '$remote_runner'"
+}
+
 main() {
   parse_args "$@"
 
@@ -126,14 +138,17 @@ main() {
   repo="$(basename "$SRC")"
   local artifact
   artifact="$(mktemp -t "${repo}.XXXXXX.tar.gz")"
+  local runner
+  runner="$(mktemp -t "${repo}.runner.XXXXXX.sh")"
   local remote_artifact="$DEPLOY_ROOT/$repo.tar.gz"
-  local remote_src="$DEPLOY_ROOT/$repo"
+  local remote_runner="$DEPLOY_ROOT/$repo.run.sh"
 
-  trap "rm -f '$artifact'" EXIT
+  trap "rm -f '$artifact' '$runner'" EXIT
 
   make_artifact "$SRC" "$repo" "$artifact"
-  upload_artifact "$artifact" "$remote_artifact"
-  run_remote_setup "$repo" "$remote_artifact" "$remote_src"
+  write_runner "$runner"
+  upload_payload "$artifact" "$runner" "$remote_artifact" "$remote_runner"
+  run_remote_setup "$repo" "$remote_runner"
 
   log "Deployment finished: $repo -> $DST"
 }
