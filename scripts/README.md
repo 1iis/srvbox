@@ -8,12 +8,12 @@
 A production server should not need `git` or GitHub credentials, let alone write access to source repositories.  
 Instead, the workstation sends a complete artifact `/tmp/deploy/1iis/srvbox.tar.gz` which the server unpacks and installs.  
 
-This gives us a small, inspectable deployment path: `tar`, `cat`, `scp`, `ssh`, `sudo`, `sh`, with two clear network ops (🛜 below).  
+This gives us a small, inspectable deployment path: `tar`, `cat`, `scp`, `ssh`, `sudo`, `sh`, with two clear network ops (🛜 below).
+
 `./scripts/deploy.sh -d user@host` does:
 
 ```text
 ——— Workstation ———————————————————————————————————————————————————
-··· scripts/deploy.sh
  1    tar repo                   /tmp/deploy/1iis/srvbox.tar.gz
  2    cat > runner script        /tmp/deploy/1iis/srvbox.run.sh
        🠋
