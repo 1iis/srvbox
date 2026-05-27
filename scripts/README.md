@@ -8,25 +8,28 @@
 A production server should not need `git` or GitHub credentials, let alone write access to source repositories.  
 Instead, the workstation sends a complete artifact `/tmp/deploy/1iis/srvbox.tar.gz` which the server unpacks and installs.  
 
-This gives us a small, inspectable deployment path: `tar`, `scp`, `ssh`, `sudo`, `sh`.
+This gives us a small, inspectable deployment path: `tar`, `cat`, `scp`, `ssh`, `sudo`, `sh`, with two clear network ops (🛜 below).  
+`./scripts/deploy.sh -d user@host` does:
 
 ```text
-Workstation
-   🠋
-  tar repo              /tmp/deploy/1iis/srvbox.tar.gz
-  cat > runner script   /tmp/deploy/1iis/srvbox.run.sh
-   🠋
-  scp tarball + runner
-   🠋
-  ssh -t "sudo sh runner"
-   🠋
-Server (as root)
-   🠋 runner extracts tarball
-/tmp/deploy/1iis/srvbox/
-   🠋 setup.sh
-/opt/1iis/srvbox/releases/<stamp>/
-   🠋 sync.py apply
-Hardened host
+——— Workstation ———————————————————————————————————————————————————
+ 1    tar repo                   /tmp/deploy/1iis/srvbox.tar.gz
+ 2    cat > runner script        /tmp/deploy/1iis/srvbox.run.sh
+       🠋
+ 3    scp tarball + runner       🛜 upload both files to server
+       🠋
+ 4    ssh -t "sudo sh runner"    🛜 elevated shell script
+       🠋
+——— Server (as root) ——————————————————————————————————————————————
+ 5    runner extracts tarball    sees scripts/setup.sh
+       🠋
+··· /tmp/deploy/1iis/srvbox/
+ 6    setup.sh                   copy to prod dir + link "current"
+       🠋
+··· /opt/1iis/srvbox/releases/<stamp>/ → /opt/1iis/srvbox/current/
+ 7    sync.py apply
+       🠋
+——— Hardened host —————————————————————————————————————————————————
 ```
 
 ## `deploy.sh`
@@ -131,15 +134,16 @@ It expects to run as `root`.
    /opt/1iis/srvbox/current/host/sync.py apply
    ```
 
-### Why `releases/current`?
+### `releases` → `current`
 
-- Rollback is just changing a symlink.
-- The old release remains on disk until cleaned.
 - The `sync.py` reconciler always runs from a stable, known path.
+- Rollback? Change a symlink.
+- Old release remains on disk until cleaned.
 
 ---
 
-## `check.sh` — validation
+## `check.sh`
+> Validation
 
 Placeholder. Eventually: lint bash, `py_compile` Python, and dry-run checks that can be executed locally before `deploy.sh` is called.
 
