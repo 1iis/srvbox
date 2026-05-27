@@ -49,13 +49,14 @@ does:
 1. Two files:
     - `$REPO.tar.gz`: clean tarball of the repo (excludes `.git`, `__pycache__`, temporary files).
     - `$REPO.run.sh`: temporary runner script.
-3. `scp` uploads both in a single transaction to `/tmp/deploy/1iis/$REPO/`
-4. `ssh -t` executes the runner remotely, so `sudo` has a TTY for the password prompt.
+2. `scp` uploads both in a single transaction to `/tmp/deploy/1iis/$REPO/`
+3. `ssh -t` executes the runner remotely, so `sudo` has a TTY for the password prompt.
 
-## `srvbox.run.sh`
-> Runner script
 
-### SSH and `sudo` TTY trap
+### `srvbox.run.sh`
+> Temporary runner script
+
+#### SSH and `sudo` TTY trap
 
 To execute our setup on a remote host, we need to run an installation script with `sudo`. The naive approach is to use a here-doc over SSH:
 
@@ -73,7 +74,7 @@ When `ssh -t` allocates a pseudo-terminal (TTY), `sudo` uses it to prompt for th
 
 We also cannot rely on caching `sudo` credentials across multiple SSH calls, that cache is tied to the specific TTY session.
 
-### Solution: Generated Runner
+#### Generated Runner
 
 To safely elevate privileges without `stdin` collisions, the execution environment (TTY) and the script payload (file content) must be separated. We generate a tiny "runner" script locally, upload it alongside the tarball artifact, and execute it over a single interactive SSH session:
 
@@ -90,10 +91,7 @@ ssh -t "$DST" "sudo env REPO='$repo' sh '/tmp/deploy/1iis/$remote_runner'"
 
 By placing the commands in a remote file, `sudo` prompts securely via the TTY, and `sh` reads the commands safely from the filesystem. They do not fight over `stdin`.
 
-### Why `ssh -t`?
-
-`sudo` without a TTY refuses to prompt for a password in some configurations.  
-Thus we need the terminal: `ssh -t` forces pseudo-terminal allocation.
+`sudo` without a TTY refuses to prompt for a password in some configurations, so `ssh -t` forces pseudo-terminal allocation.
 
 > [!NOTE]
 > This pretty much requires a human in the loop, gatekeeping deployment to production servers.
@@ -116,11 +114,7 @@ Thus we need the terminal: `ssh -t` forces pseudo-terminal allocation.
 ## 2. `setup.sh`
 > Server side
 
-`setup.sh` is executed by the runner inside the unpacked artifact at `/tmp/deploy/1iis/$REPO/`.
-
-It expects to run as `root`.
-
-### What it does
+`setup.sh` expects to run as `root`, executed by the runner inside the unpacked artifact at `/tmp/deploy/1iis/$REPO/`.
 
 1. Ensures `python3` and `ca-certificates` are installed (`apt-get`).
 2. Copies the unpacked source into a **timestamped release directory**:
@@ -129,30 +123,28 @@ It expects to run as `root`.
    /opt/1iis/srvbox/releases/20260527T034606Z/
    ```
 
-3. Atomically updates the `current` symlink:
+3. Atomically updates the `current` symlink.
 
    ```text
    /opt/1iis/srvbox/current -> releases/20260527T034606Z/
    ```
+   
+   Note that a rollback is thus a simple symlink change to an older release.
 
-4. Hands off to the reconciler:
+4. Hands off to the reconciler, which always runs from a stable, known path.
 
    ```bash
    /opt/1iis/srvbox/current/host/sync.py apply
    ```
-
-### `releases` → `current`
-
-- The `sync.py` reconciler always runs from a stable, known path.
-- Rollback? Change a symlink.
-- Old release remains on disk until cleaned.
 
 ---
 
 ## 3. `check.sh`
 > Validation
 
-Placeholder. Eventually: lint bash, `py_compile` Python, and dry-run checks that can be executed locally before `deploy.sh` is called.
+Placeholder.
+
+Eventually: lint bash, `py_compile` Python, and dry-run checks that can be executed locally before `deploy.sh` is called.
 
 ---
 
