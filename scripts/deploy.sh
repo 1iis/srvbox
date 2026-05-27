@@ -95,22 +95,22 @@ run_remote_setup() {
   local remote_src="$3"
 
   log "Extracting and running remote setup"
-  ssh -t "$DST" "sudo env REPO='$repo' DEPLOY_ROOT='$DEPLOY_ROOT' REMOTE_ARTIFACT='$remote_artifact' REMOTE_SRC='$remote_src' sh -c '
+  ssh -tt "$DST" "sudo env REPO='$repo' DEPLOY_ROOT='$DEPLOY_ROOT' REMOTE_ARTIFACT='$remote_artifact' REMOTE_SRC='$remote_src' sh -s" <<'EOF'
 set -eu
 
-echo "'"'==> Preparing remote source: '"'"\$REMOTE_SRC"
-rm -rf "\$REMOTE_SRC"
-mkdir -p "\$REMOTE_SRC"
-tar -xzf "\$REMOTE_ARTIFACT" -C "\$REMOTE_SRC" --strip-components=1
+echo "==> Preparing remote source: $REMOTE_SRC"
+rm -rf "$REMOTE_SRC"
+mkdir -p "$REMOTE_SRC"
+tar -xzf "$REMOTE_ARTIFACT" -C "$REMOTE_SRC" --strip-components=1
 
-if [ ! -x "\$REMOTE_SRC/scripts/setup.sh" ]; then
-  chmod +x "\$REMOTE_SRC/scripts/setup.sh"
+if [ ! -x "$REMOTE_SRC/scripts/setup.sh" ]; then
+  chmod +x "$REMOTE_SRC/scripts/setup.sh"
 fi
 
-echo "'"'==> Running setup.sh for: '"'"\$REPO"
-cd "\$REMOTE_SRC"
+echo "==> Running setup.sh for: $REPO"
+cd "$REMOTE_SRC"
 ./scripts/setup.sh
-'"
+EOF
 }
 
 main() {
