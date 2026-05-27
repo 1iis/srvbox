@@ -13,21 +13,21 @@ This gives us a small, inspectable deployment path: `tar`, `cat`, `scp`, `ssh`, 
 
 ```text
 ——— Workstation ———————————————————————————————————————————————————
+··· scripts/deploy.sh
  1    tar repo                   /tmp/deploy/1iis/srvbox.tar.gz
  2    cat > runner script        /tmp/deploy/1iis/srvbox.run.sh
        🠋
  3    scp tarball + runner       🛜 upload both files to server
-       🠋
  4    ssh -t "sudo sh runner"    🛜 elevated shell script
        🠋
 ——— Server (as root) ——————————————————————————————————————————————
  5    runner extracts tarball    sees scripts/setup.sh
        🠋
 ··· /tmp/deploy/1iis/srvbox/
- 6    setup.sh                   copy to prod dir + link "current"
+ 6    setup.sh                   prod dir copy + link to "current"
        🠋
 ··· /opt/1iis/srvbox/releases/<stamp>/ → /opt/1iis/srvbox/current/
- 7    sync.py apply
+ 7    sync.py apply              converge host to desired state
        🠋
 ——— Hardened host —————————————————————————————————————————————————
 ```
