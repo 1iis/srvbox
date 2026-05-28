@@ -3,6 +3,7 @@
 #----------------------------
 NOTES.md
 tmp/
+templates/
 
 # secrets / local state
 
@@ -17,7 +18,7 @@ env.zsh
 
 # SSH material
 .ssh/
-!templates/ssh_config.example
+#!templates/ssh_config.example
 
 # tool auth/state
 .codex/
