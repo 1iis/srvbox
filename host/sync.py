@@ -106,7 +106,6 @@ def has_authorized_keys(user: str) -> bool:
     return False if (path := authorized_keys_path(user)) is None else bool((text := read_text(path)) and text.strip())
 def require_key_auth_viable() -> None:
     user = sudo_or_login_user()
-    if not os.environ.get("SSH_CONNECTION") and not os.environ.get("SSH_CLIENT"): raise SystemExit("error: refusing SSH hardening outside an SSH session")
     if not has_authorized_keys(user): raise SystemExit(f"error: refusing to disable password auth; no authorized_keys found for {user}")
     log(f"key-auth viability: authorized_keys present for {user}")
 def configure_ssh() -> None:
