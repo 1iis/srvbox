@@ -2,6 +2,7 @@ from __future__ import annotations
 import argparse
 import os
 import platform
+import pwd
 import shutil
 import subprocess
 import sys
@@ -50,8 +51,81 @@ def check_access_policy() -> None:
 
     for key, value in facts: log(f"{key}: {value}")
 
+SSHD_DROPIN = Path("/etc/ssh/sshd_config.d/90-1iis-srvbox.conf")
+SSHD_DROPIN_TEXT = """\
+# Managed by srvbox. Local changes may be overwritten.
+
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication no
+PermitEmptyPasswords no
+KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+UsePAM yes
+X11Forwarding no
+"""
+def write_text_if_changed(path: Path, text: str) -> bool:
+    if read_text(path) == text: return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    return True
+def chown_root(path: Path) -> None: shutil.chown(path, user="root", group="root")
+def chmod(path: Path, mode: int) -> None: path.chmod(mode)
+def systemctl(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    return run(["systemctl", *args], check=check)
+def ssh_service_name() -> str:
+    if service_is_active("ssh") != "unknown" or service_is_enabled("ssh") != "unknown": return "ssh"
+    if service_is_active("sshd") != "unknown" or service_is_enabled("sshd") != "unknown": return "sshd"
+    return "ssh"
+def validate_sshd_config() -> None:
+    if not cmd_exists("sshd"): raise SystemExit("error: sshd command not found")
+    result = run_capture(["sshd", "-t"])
+    if result is None or result.returncode != 0:
+        err = "" if result is None else result.stderr.strip()
+        raise SystemExit(f"error: sshd config validation failed: {err}")
+def restore_file(path: Path, previous: str | None) -> None:
+    if previous is None:
+        if path.exists(): path.unlink()
+    else:
+        path.write_text(previous)
+def reload_ssh_service() -> None:
+    service = ssh_service_name()
+    if not cmd_exists("systemctl"): raise SystemExit("error: systemctl command not found")
+    if systemctl("reload", service, check=False).returncode == 0:
+        log(f"reloaded SSH service: {service}")
+        return
+    systemctl("restart", service)
+    log(f"restarted SSH service: {service}")
+def sudo_or_login_user() -> str: return os.environ.get("SUDO_USER") or os.environ.get("USER") or "unknown"
+def home_for_user(user: str) -> Path | None:
+    try: return Path(pwd.getpwnam(user).pw_dir) if user != "unknown" else None
+    except KeyError: return None
+def authorized_keys_path(user: str) -> Path | None:
+    return None if (home := home_for_user(user)) is None else home / ".ssh" / "authorized_keys"
+def has_authorized_keys(user: str) -> bool:
+    return False if (path := authorized_keys_path(user)) is None else bool((text := read_text(path)) and text.strip())
+def require_key_auth_viable() -> None:
+    user = sudo_or_login_user()
+    if not os.environ.get("SSH_CONNECTION") and not os.environ.get("SSH_CLIENT"): raise SystemExit("error: refusing SSH hardening outside an SSH session")
+    if not has_authorized_keys(user): raise SystemExit(f"error: refusing to disable password auth; no authorized_keys found for {user}")
+    log(f"key-auth viability: authorized_keys present for {user}")
 def configure_ssh() -> None:
-    log("TODO: harden sshd_config: no root login, key auth only")
+    require_key_auth_viable()
+    previous = read_text(SSHD_DROPIN)
+    changed = write_text_if_changed(SSHD_DROPIN, SSHD_DROPIN_TEXT)
+    chown_root(SSHD_DROPIN)
+    chmod(SSHD_DROPIN, 0o644)
+
+    try:
+        validate_sshd_config()
+    except SystemExit:
+        restore_file(SSHD_DROPIN, previous)
+        validate_sshd_config()
+        raise
+
+    if changed: reload_ssh_service()
+    else: log(f"SSH drop-in unchanged: {SSHD_DROPIN}")
+
 def configure_firewall() -> None:
     log("TODO: configure firewall baseline: deny incoming, allow SSH")
 def configure_fail2ban() -> None:
