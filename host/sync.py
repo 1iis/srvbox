@@ -157,8 +157,44 @@ def configure_firewall() -> None:
 
     log("ufw status:")
     print(ufw_status(verbose=True))
+ENABLE_FAIL2BAN = False
+FAIL2BAN_JAIL = Path("/etc/fail2ban/jail.d/90-1iis-srvbox.local")
+def fail2ban_jail_text() -> str:
+    enabled = "true" if ENABLE_FAIL2BAN else "false"
+    return f"""\
+# Managed by srvbox. Local changes may be overwritten.
+
+[sshd]
+enabled = {enabled}
+backend = systemd
+maxretry = 5
+findtime = 10m
+bantime = 1h
+"""
+def fail2ban_active_jails() -> str:
+    result = run_capture(["fail2ban-client", "status"])
+    if result is None or result.returncode != 0: return "unknown"
+    for line in result.stdout.splitlines():
+        if "Jail list:" in line: return line.split(":", 1)[1].strip() or "none"
+    return "none"
+def enable_service(name: str) -> None: systemctl("enable", "--now", name)
+def disable_service(name: str) -> None: systemctl("disable", "--now", name, check=False)
 def configure_fail2ban() -> None:
-    log("TODO: install/configure fail2ban")
+    install_packages(["fail2ban"])
+    if not cmd_exists("fail2ban-client"): raise SystemExit("error: fail2ban-client not found after install")
+
+    changed = write_text_if_changed(FAIL2BAN_JAIL, fail2ban_jail_text())
+    chown_root(FAIL2BAN_JAIL)
+    chmod(FAIL2BAN_JAIL, 0o644)
+
+    if ENABLE_FAIL2BAN:
+        if changed and service_is_active("fail2ban") == "yes": systemctl("restart", "fail2ban")
+        enable_service("fail2ban")
+        log(f"fail2ban active jails: {fail2ban_active_jails()}")
+    else:
+        disable_service("fail2ban")
+        log("fail2ban configured but intentionally inactive")
+
 def configure_unattended_upgrades() -> None:
     log("TODO: install/configure unattended-upgrades")
 def configure_caddy() -> None:
@@ -233,9 +269,12 @@ def check_status() -> None:
         ("ufw",                               cmd_path("ufw")),
         ("ufw status",                        ufw_status()),
 
+        ("fail2ban policy enabled",            yesno(ENABLE_FAIL2BAN)),
         ("fail2ban-client",                   cmd_path("fail2ban-client")),
         ("fail2ban active",                   service_is_active("fail2ban")),
         ("fail2ban enabled",                  service_is_enabled("fail2ban")),
+        ("fail2ban managed jail",             yesno(file_exists(FAIL2BAN_JAIL))),
+        ("fail2ban active jails",             fail2ban_active_jails() if service_is_active("fail2ban") == "yes" else "inactive"),
 
         ("unattended-upgrade",                cmd_path("unattended-upgrade")),
         ("unattended-upgrades",               unattended_upgrades_status()),
@@ -243,7 +282,6 @@ def check_status() -> None:
 
     for key, value in facts: log(f"{key}: {value}")
     log("status check complete")
-
 STEPS = [
     Step("base directories", ensure_base_dirs),
     Step("access policy", check_access_policy),
