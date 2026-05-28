@@ -4,6 +4,7 @@
 NOTES.md
 tmp/
 templates/
+*.sample
 
 # secrets / local state
 

@@ -6,13 +6,14 @@
 
 ## Quick start
 
+From a local repo, with `user@host` a valid `ssh` remote.
 ```sh
 ./scripts/deploy.sh -d user@host
 ```
 
-This builds a local artifact, uploads it over SSH, installs a root-owned release under `/opt/1iis/srvbox/releases/`, updates `/opt/1iis/srvbox/current`, then runs the host reconciler.
+This builds a local artifact, uploads it over SSH, installs a root-owned release under `/opt/1iis/srvbox/releases/`, updates a symlink to `/opt/1iis/srvbox/current`, then runs the host reconciler.
 
-## What it sets up
+## Desired host state
 
 - `root`-owned timestamped releases
 - base directories:
@@ -26,7 +27,7 @@ This builds a local artifact, uploads it over SSH, installs a root-owned release
 - fail2ban installed/configured, policy-controlled
 - optional Caddy ingress with `/etc/caddy/sites.d/*.caddy` fragments
 
-## Map
+## Repo map
 
 - [`scripts/`](scripts/) — `deploy`, `setup`, and `check` scripts
 - [`scripts/README.md`](scripts/README.md) — deployment path and operational notes
@@ -36,9 +37,9 @@ This builds a local artifact, uploads it over SSH, installs a root-owned release
 ## Commands
 
 ```sh
-./scripts/check.sh
-python3 host/sync.py status
-sudo python3 host/sync.py apply
+./scripts/check.sh                  # local check
+python3 host/sync.py status         # srvbox status
+sudo python3 host/sync.py apply     # reconcile host with desired state
 ```
 
 ## Deployment model
