@@ -14,8 +14,12 @@ This builds a local artifact, uploads it over SSH, installs a root-owned release
 
 ## What it sets up
 
-- root-owned timestamped releases
-- base `/opt/1iis`, `/etc/1iis`, `/var/lib/1iis`, `/var/log/1iis` directories
+- `root`-owned timestamped releases
+- base directories:
+    - `/opt/1iis`
+    - `/etc/1iis`
+    - `/var/lib/1iis`
+    - `/var/log/1iis`
 - SSH hardening via `/etc/ssh/sshd_config.d/`
 - `ufw` firewall baseline
 - unattended security upgrades
@@ -24,12 +28,10 @@ This builds a local artifact, uploads it over SSH, installs a root-owned release
 
 ## Map
 
-- [`scripts/`](scripts/) — deploy, setup, and smoke-check scripts
+- [`scripts/`](scripts/) — `deploy`, `setup`, and `check` scripts
 - [`scripts/README.md`](scripts/README.md) — deployment path and operational notes
-- [`host/sync.py`](host/sync.py) — stdlib-only host reconciler
-- [`host/sync.ipynb`](host/sync.ipynb) — literate source for the reconciler
-- [`docs/mvp-roadmap.md`](docs/mvp-roadmap.md) — roadmap notes
-- [`templates/`](templates/) — example host/app configuration shapes
+- [`host/sync.ipynb`](host/sync.ipynb) — stdlib-only host reconciler (literate source)
+- [`host/sync.py`](host/sync.py) — reconciler [export]
 
 ## Commands
 
