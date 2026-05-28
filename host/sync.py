@@ -212,7 +212,7 @@ def configure_unattended_upgrades() -> None:
     enable_service("apt-daily-upgrade.timer")
     log(f"unattended upgrades periodic config: {'updated' if changed else 'unchanged'}")
     log("unattended upgrades automatic reboot: unmanaged/disabled by default")
-ENABLE_CADDY = False
+ENABLE_CADDY = True
 CADDYFILE = Path("/etc/caddy/Caddyfile")
 CADDY_SITES = Path("/etc/caddy/sites.d")
 def caddyfile_text() -> str:
