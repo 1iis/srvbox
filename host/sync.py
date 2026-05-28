@@ -195,8 +195,23 @@ def configure_fail2ban() -> None:
         disable_service("fail2ban")
         log("fail2ban configured but intentionally inactive")
 
+APT_AUTO_UPGRADES = Path("/etc/apt/apt.conf.d/20auto-upgrades")
+APT_AUTO_UPGRADES_TEXT = """\
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+"""
 def configure_unattended_upgrades() -> None:
-    log("TODO: install/configure unattended-upgrades")
+    install_packages(["unattended-upgrades"])
+    if not cmd_exists("unattended-upgrade"): raise SystemExit("error: unattended-upgrade not found after install")
+
+    changed = write_text_if_changed(APT_AUTO_UPGRADES, APT_AUTO_UPGRADES_TEXT)
+    chown_root(APT_AUTO_UPGRADES)
+    chmod(APT_AUTO_UPGRADES, 0o644)
+
+    enable_service("apt-daily.timer")
+    enable_service("apt-daily-upgrade.timer")
+    log(f"unattended upgrades periodic config: {'updated' if changed else 'unchanged'}")
+    log("unattended upgrades automatic reboot: unmanaged/disabled by default")
 def configure_caddy() -> None:
     log("TODO: optionally install/configure Caddy")
 def yesno(value: bool) -> str: return "yes" if value else "no"
