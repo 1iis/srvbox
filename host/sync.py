@@ -212,8 +212,60 @@ def configure_unattended_upgrades() -> None:
     enable_service("apt-daily-upgrade.timer")
     log(f"unattended upgrades periodic config: {'updated' if changed else 'unchanged'}")
     log("unattended upgrades automatic reboot: unmanaged/disabled by default")
+ENABLE_CADDY = False
+CADDYFILE = Path("/etc/caddy/Caddyfile")
+CADDY_SITES = Path("/etc/caddy/sites.d")
+def caddyfile_text() -> str:
+    return """\
+# Managed by srvbox. Local changes may be overwritten.
+
+import /etc/caddy/sites.d/*.caddy
+"""
+def caddy(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    return run(["caddy", *args], check=check)
+def validate_caddy_config() -> None:
+    if not cmd_exists("caddy"): raise SystemExit("error: caddy command not found")
+    result = run_capture(["caddy", "validate", "--config", str(CADDYFILE)])
+    if result is None or result.returncode != 0:
+        err = "" if result is None else (result.stderr.strip() or result.stdout.strip())
+        raise SystemExit(f"error: caddy config validation failed: {err}")
+def reload_or_start_caddy(changed: bool) -> None:
+    if service_is_active("caddy") == "yes" and changed:
+        systemctl("reload", "caddy")
+        log("reloaded Caddy")
+    else:
+        enable_service("caddy")
+        log("enabled/started Caddy")
 def configure_caddy() -> None:
-    log("TODO: optionally install/configure Caddy")
+    if not ENABLE_CADDY:
+        ufw("delete", "allow", "80/tcp", check=False)
+        ufw("delete", "allow", "443/tcp", check=False)
+        if cmd_exists("systemctl") and service_is_active("caddy") == "yes": disable_service("caddy")
+        log("Caddy ingress disabled by policy")
+        return
+
+    install_packages(["caddy"])
+    if not cmd_exists("caddy"): raise SystemExit("error: caddy command not found after install")
+
+    CADDY_SITES.mkdir(parents=True, exist_ok=True)
+    chown_root(CADDY_SITES)
+    chmod(CADDY_SITES, 0o755)
+
+    previous = read_text(CADDYFILE)
+    changed = write_text_if_changed(CADDYFILE, caddyfile_text())
+    chown_root(CADDYFILE)
+    chmod(CADDYFILE, 0o644)
+
+    try:
+        validate_caddy_config()
+    except SystemExit:
+        restore_file(CADDYFILE, previous)
+        validate_caddy_config()
+        raise
+
+    ufw("allow", "80/tcp")
+    ufw("allow", "443/tcp")
+    reload_or_start_caddy(changed)
 def yesno(value: bool) -> str: return "yes" if value else "no"
 def cmd_path(name: str) -> str: return shutil.which(name) or "missing"
 def cmd_exists(name: str) -> bool: return cmd_path(name) != "missing"
@@ -293,8 +345,14 @@ def check_status() -> None:
 
         ("unattended-upgrade",                cmd_path("unattended-upgrade")),
         ("unattended-upgrades",               unattended_upgrades_status()),
-    ]
 
+        ("caddy policy enabled",              yesno(ENABLE_CADDY)),
+        ("caddy",                             cmd_path("caddy")),
+        ("caddy active",                      service_is_active("caddy")),
+        ("caddy enabled",                     service_is_enabled("caddy")),
+        ("caddyfile",                         yesno(file_exists(CADDYFILE))),
+        ("caddy sites.d",                     yesno(dir_exists(CADDY_SITES))),
+    ]
     for key, value in facts: log(f"{key}: {value}")
     log("status check complete")
 STEPS = [
