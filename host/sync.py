@@ -39,8 +39,17 @@ def ensure_base_dirs() -> None:
         shutil.chown(path, user="root", group="root")
         path.chmod(0o755)
         log(f"ensured directory: {path}")
-def ensure_admin_user() -> None:
-    log("TODO: create non-root admin/service user conventions")
+def check_access_policy() -> None:
+    facts = [
+        ("human users",        "unmanaged by srvbox; deploy user must already exist"),
+        ("deploy access",      "pre-existing SSH user with sudo"),
+        ("privilege",          "satisfied: apply is running as root"),
+        ("srvbox user",        "not created; srvbox is a root-run reconciler, not a daemon"),
+        ("future app users",   "per-app system users named iis-<app>, created by app deployment when needed"),
+    ]
+
+    for key, value in facts: log(f"{key}: {value}")
+
 def configure_ssh() -> None:
     log("TODO: harden sshd_config: no root login, key auth only")
 def configure_firewall() -> None:
@@ -133,13 +142,14 @@ def check_status() -> None:
 
 STEPS = [
     Step("base directories", ensure_base_dirs),
-    Step("admin/service users", ensure_admin_user),
+    Step("access policy", check_access_policy),
     Step("ssh hardening", configure_ssh),
     Step("firewall", configure_firewall),
     Step("fail2ban", configure_fail2ban),
     Step("unattended upgrades", configure_unattended_upgrades),
     Step("caddy", configure_caddy),
 ]
+
 def apply() -> None:
     require_root()
     require_ubuntuish()
