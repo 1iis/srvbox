@@ -6,6 +6,7 @@ import pwd
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -126,9 +127,25 @@ def configure_ssh() -> None:
     else: log(f"SSH drop-in unchanged: {SSHD_DROPIN}")
 
 SSH_DEFAULT_PORT = "22"
+APT_RETRIES = 12
+APT_RETRY_SECONDS = 10
+
+def run_apt(cmd: list[str]) -> None:
+    last: subprocess.CalledProcessError | None = None
+    for attempt in range(1, APT_RETRIES + 1):
+        try:
+            run(cmd)
+            return
+        except subprocess.CalledProcessError as e:
+            last = e
+            log(f"apt attempt {attempt}/{APT_RETRIES} failed; retrying in {APT_RETRY_SECONDS}s")
+            time.sleep(APT_RETRY_SECONDS)
+    raise last or SystemExit(f"error: apt command failed: {' '.join(cmd)}")
+
 def install_packages(names: list[str]) -> None:
-    run(["apt-get", "update"])
-    run(["apt-get", "install", "-y", *names])
+    run_apt(["apt-get", "update"])
+    run_apt(["apt-get", "install", "-y", *names])
+
 def ufw(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     return run(["ufw", *args], check=check)
 def known_ssh_ports() -> list[str]:
@@ -215,6 +232,22 @@ def configure_unattended_upgrades() -> None:
 ENABLE_CADDY = True
 CADDYFILE = Path("/etc/caddy/Caddyfile")
 CADDY_SITES = Path("/etc/caddy/sites.d")
+CADDY_KEYRING = Path("/usr/share/keyrings/caddy-stable-archive-keyring.gpg")
+CADDY_APT_SOURCE = Path("/etc/apt/sources.list.d/caddy-stable.list")
+CADDY_GPG_URL = "https://dl.cloudsmith.io/public/caddy/stable/gpg.key"
+CADDY_DEB_URL = "https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt"
+def install_url(url: str, path: Path, *, dearmor: bool = False) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if dearmor:
+        run(["sh", "-c", f"curl -1sLf {url!r} | gpg --dearmor -o {str(path)!r}"])
+    else:
+        run(["sh", "-c", f"curl -1sLf {url!r} > {str(path)!r}"])
+    chmod(path, 0o644)
+def ensure_caddy_repo() -> None:
+    install_packages(["debian-keyring", "debian-archive-keyring", "apt-transport-https", "curl", "gpg"])
+    if not CADDY_KEYRING.exists(): install_url(CADDY_GPG_URL, CADDY_KEYRING, dearmor=True)
+    if not CADDY_APT_SOURCE.exists(): install_url(CADDY_DEB_URL, CADDY_APT_SOURCE)
+    run_apt(["apt-get", "update"])
 def caddyfile_text() -> str:
     return """\
 # Managed by srvbox. Local changes may be overwritten.
@@ -244,6 +277,7 @@ def configure_caddy() -> None:
         log("Caddy ingress disabled by policy")
         return
 
+    ensure_caddy_repo()
     install_packages(["caddy"])
     if not cmd_exists("caddy"): raise SystemExit("error: caddy command not found after install")
 
