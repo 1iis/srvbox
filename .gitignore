@@ -32,10 +32,14 @@ env.zsh
 #----------------------------
 
 # solveit
+
+# exclude by default
 DX/
 *.ipynb
+
 # dev notebooks
 !host/sync.ipynb
+!CRAFT.ipynb
 
 #----------------------------
 
