@@ -125,8 +125,38 @@ def configure_ssh() -> None:
     if changed: reload_ssh_service()
     else: log(f"SSH drop-in unchanged: {SSHD_DROPIN}")
 
+SSH_DEFAULT_PORT = "22"
+def install_packages(names: list[str]) -> None:
+    run(["apt-get", "update"])
+    run(["apt-get", "install", "-y", *names])
+def ufw(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    return run(["ufw", *args], check=check)
+def known_ssh_ports() -> list[str]:
+    ports = configured_ssh_ports()
+    if ports == "unknown": raise SystemExit("error: refusing to enable firewall; SSH port is unknown")
+    return [port.strip() for port in ports.split(",") if port.strip()] or [SSH_DEFAULT_PORT]
 def configure_firewall() -> None:
-    log("TODO: configure firewall baseline: deny incoming, allow SSH")
+    install_packages(["ufw"])
+    if not cmd_exists("ufw"): raise SystemExit("error: ufw command not found after install")
+
+    ports = known_ssh_ports()
+    log(f"firewall SSH port(s): {', '.join(ports)}")
+
+    ufw("default", "deny", "incoming")
+    ufw("default", "allow", "outgoing")
+
+    for port in ports:
+        ufw("allow", f"{port}/tcp")
+        log(f"firewall allowed SSH: {port}/tcp")
+
+    if "Status: active" in ufw_status():
+        log("ufw already active")
+    else:
+        log("enabling ufw after SSH allow rule")
+        ufw("--force", "enable")
+
+    log("ufw status:")
+    print(ufw_status(verbose=True))
 def configure_fail2ban() -> None:
     log("TODO: install/configure fail2ban")
 def configure_unattended_upgrades() -> None:
@@ -170,9 +200,10 @@ def configured_ssh_ports() -> str:
     if ports: return ", ".join(dict.fromkeys(ports))
     if texts: return "22"
     return "unknown"
-def ufw_status() -> str:
-    if not cmd_exists("ufw") or (r := run_capture(["ufw", "status"])) is None or r.returncode != 0: return "unknown"
-    return r.stdout.splitlines()[0].strip() if r.stdout.splitlines() else "unknown"
+def ufw_status(verbose: bool = False) -> str:
+    args = ["ufw", "status", "verbose"] if verbose else ["ufw", "status"]
+    if not cmd_exists("ufw") or (r := run_capture(args)) is None or r.returncode != 0: return "unknown"
+    return r.stdout.strip() or "unknown"
 def unattended_upgrades_status() -> str:
     binary   = cmd_exists("unattended-upgrade")
     config   = file_exists(Path("/etc/apt/apt.conf.d/50unattended-upgrades"))
